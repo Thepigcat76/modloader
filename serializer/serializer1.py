@@ -1,6 +1,5 @@
 import json
 from typing import Any, Self, Dict, List, Set, Callable, Type, TypeVar, get_args, get_origin
-import inspect
 
 class Serializable:
     def serialize(self) -> Any:
@@ -94,22 +93,17 @@ def transform_save(dict: dict[Any, Any]) -> dict[Any, Any]:
     return transform(dict, lambda obj: obj.serialize())
 
 def transform_load(_type: Type[Any], obj: Any, transform_func: Callable[[Type[Serializable], Serializable], Any]) -> Any:
-    print(f"The type: {type(_type)}")
-    print(f"1 The type: {_type}")
     if get_origin(_type) is list:
-        print("We found a list :3")
         new_list = []
         inner_type = get_args(_type)[0]
         for item in obj:
             new_list.append(transform_load(inner_type, item, transform_func))
         return new_list
     elif _type is Dict:
-        print(f"dict: {obj}")
         new_dict = {}
         inner_type_0 = get_args(_type)[0]
         inner_type_1 = get_args(_type)[1]
         for (key, val) in obj.items():
-            print(f"k: {key}, v: {val}")
             new_dict[transform_load(inner_type_0, key, transform_func)] = transform_load(inner_type_1, val, transform_func)
         return new_dict
     elif isinstance(_type, Type) and issubclass(_type, Serializable):
@@ -122,21 +116,14 @@ def deserialize(_type: Type[T], json_obj: dict[Any, Any]) -> T:
     if hasattr(_type, "__annotations__"):
         new_dict = {}
         for (key, val) in json_obj.items():
-            #print(f"type: {_type.__name__}, key: {key}, has field: {key in _type.__annotations__.keys()}")
             if key in _type.__annotations__.keys():
                 new_val = val
                 new_dict[key] = transform_load(_type.__annotations__[key], new_val, lambda type, obj: type.deserialize(obj))
-        print(f"keys: {new_dict.keys()}")
         return _type(**new_dict)
     else:
         raise Exception("Can only deserialize class with type hints")
     
 def main():
-    #obj = MyClass(100, 200, "e")
-    #json_obj = transform_save(obj.__dict__)
-    #print(json_obj)
-    #save_json("test.json", json_obj)
-
     json_obj = load_json("serializer/test.json")
     obj = deserialize(MyClass, json_obj)
     print(f"{obj.t.t}")

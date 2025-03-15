@@ -11,31 +11,40 @@ class ModConfig:
         self.description = description
 
     def __str__(self):
-        return f"ModConfig{{id: {self.id}, name: {self.name}, version: {self.version}, description: \"{self.description}\"}}"
+        return f"ModConfig{{id: \"{self.id}\", name: \"{self.name}\", version: {self.version}, description: \"{self.description}\"}}"
 
 from serializer.serializer1 import *
 import importlib
 import sys
 import os
+import context
 
 def run_function_from_file(module_name: str, function_name: str, file_path: str):
-    # Add the directory containing the file to sys.path
-    sys.path.append(os.path.dirname(file_path))
-    
-    # Import the module dynamically
-    module = importlib.import_module(module_name)
-    
-    # Get the function from the module
+    # Generate a unique module name
+    unique_module_name = f"{module_name}_{os.path.basename(os.path.dirname(file_path))}"
+
+    # Load module dynamically
+    spec = importlib.util.spec_from_file_location(unique_module_name, file_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Could not load module from {file_path}")
+
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[unique_module_name] = module  # Add to sys.modules to prevent GC
+    spec.loader.exec_module(module)  # Execute the module
+
+    # Get the function and execute it
     function = getattr(module, function_name)
-    
-    # Call the function
-    function()
+    function(context.ModContext("Deez"))
 
 def main():
-    json_obj = load_json("testmod/mod.json")
-    config = deserialize(ModConfig, json_obj)
-    print(config)
-    run_function_from_file("./testmod/src/mod.py", "mod", "init")
+    with os.scandir("mods") as entries:
+        for entry in entries:
+            name = entry.name
+            if entry.is_dir() and not name.startswith("_"):
+                json_obj = load_json(f"mods/{name}/mod.json")
+                config = deserialize(ModConfig, json_obj)
+                print(config)
+                run_function_from_file("mod", "init", f"mods/{name}/src/mod.py")
 
 if __name__ == "__main__":
     main()
